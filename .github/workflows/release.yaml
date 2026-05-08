@@ -15,23 +15,22 @@ jobs:
       contents: write
     steps:
       - name: 📥 Checkout the repository
-        uses: "actions/checkout@v4.1.0"
-
-      - name: 🔢 Get release version
-        id: version
-        uses: home-assistant/actions/helpers/version@master
+        uses: "actions/checkout@v4"
 
       - name: ℹ️ Get integration information
         id: information
         run: |
           name=$(find custom_components/ -type d -maxdepth 1 | tail -n 1 | cut -d "/" -f2)
-          echo "::set-output name=name::$name"
+          echo "name=$name" >> $GITHUB_OUTPUT
 
       - name: 🔢 Adjust version number
         shell: "bash"
         run: |
-          yq -i -o json '.version="${{ github.event.release.tag_name }}"' \
-            "${{ github.workspace }}/custom_components/${{ steps.information.outputs.name }}/manifest.json"
+          version="${{ github.event.release.tag_name }}"
+          version="${version#v}"
+          jq --arg v "$version" '.version = $v' \
+            "${{ github.workspace }}/custom_components/${{ steps.information.outputs.name }}/manifest.json" > tmp.json
+          mv tmp.json "${{ github.workspace }}/custom_components/${{ steps.information.outputs.name }}/manifest.json"
 
       - name: 📦 ZIP the integration directory
         shell: "bash"
@@ -40,6 +39,6 @@ jobs:
           zip ${{ steps.information.outputs.name }}.zip -r ./
 
       - name: 📤 Upload the ZIP file to the release
-        uses: softprops/action-gh-release@v0.1.15
+        uses: softprops/action-gh-release@v2
         with:
           files: ${{ github.workspace }}/custom_components/${{ steps.information.outputs.name }}/${{ steps.information.outputs.name }}.zip
