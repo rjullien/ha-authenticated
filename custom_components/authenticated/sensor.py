@@ -16,6 +16,7 @@ from ipaddress import ip_network
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 import yaml
+
 # persistent_notification is now called via hass.services (thread-safe)
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.entity import Entity
