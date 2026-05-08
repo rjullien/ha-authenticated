@@ -16,7 +16,7 @@ from ipaddress import ip_network
 import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
 import yaml
-from homeassistant.components.persistent_notification import async_create
+# persistent_notification is now called via hass.services (thread-safe)
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.helpers.entity import Entity
 
@@ -459,7 +459,13 @@ class IPData:
             self.org = geo.get("data", {}).get("org")
 
     def notify(self, hass):
-        """Create persistant notification."""
+        """Create persistent notification.
+
+        Uses hass.create_task + hass.services.async_call for thread-safety.
+        The notify() method is called from SyncWorker thread (via update()),
+        so we must use the sync-safe API instead of calling async_create directly.
+        See: https://developers.home-assistant.io/docs/asyncio_thread_safety
+        """
         message = f"""
         **IP Address:**   {self.ip_address}
         **Username:**    {self.username}
@@ -479,6 +485,14 @@ class IPData:
         if self.last_used_at is not None:
             message += f"**Login time:**   {self.last_used_at[:19].replace('T', ' ')}"
 
-        async_create(
-            hass, message, title="New successful login", notification_id=self.ip_address
+        hass.create_task(
+            hass.services.async_call(
+                "persistent_notification",
+                "create",
+                {
+                    "message": message,
+                    "title": "New successful login",
+                    "notification_id": self.ip_address,
+                },
+            )
         )
