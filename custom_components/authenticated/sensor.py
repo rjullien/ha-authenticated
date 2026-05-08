@@ -462,9 +462,10 @@ class IPData:
     def notify(self, hass):
         """Create persistent notification.
 
-        Uses hass.create_task + hass.services.async_call for thread-safety.
-        The notify() method is called from SyncWorker thread (via update()),
-        so we must use the sync-safe API instead of calling async_create directly.
+        Uses hass.loop.call_soon_threadsafe to schedule from SyncWorker thread.
+        In HA 2026.3+, persistent_notification uses async_dispatcher_send internally
+        which strictly requires the event loop thread. hass.create_task alone is no
+        longer sufficient.
         See: https://developers.home-assistant.io/docs/asyncio_thread_safety
         """
         message = f"""
@@ -486,8 +487,8 @@ class IPData:
         if self.last_used_at is not None:
             message += f"**Login time:**   {self.last_used_at[:19].replace('T', ' ')}"
 
-        hass.create_task(
-            hass.services.async_call(
+        async def _async_notify():
+            await hass.services.async_call(
                 "persistent_notification",
                 "create",
                 {
@@ -496,4 +497,5 @@ class IPData:
                     "notification_id": self.ip_address,
                 },
             )
-        )
+
+        hass.loop.call_soon_threadsafe(hass.async_create_task, _async_notify())
