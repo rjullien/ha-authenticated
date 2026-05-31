@@ -24,10 +24,9 @@ from homeassistant.helpers.entity import Entity
 from .const import (
     CONF_EXCLUDE,
     CONF_EXCLUDE_CLIENTS,
-    CONF_LOG_LOCATION,
     CONF_NOTIFY,
-    CONF_NOTIFY_ECLUDE_ASN,
-    CONF_NOTIFY_ECLUDE_HOSTNAMES,
+    CONF_NOTIFY_EXCLUDE_ASN,
+    CONF_NOTIFY_EXCLUDE_HOSTNAMES,
     CONF_PROVIDER,
     OUTFILE,
     STARTUP,
@@ -42,6 +41,7 @@ ATTR_REGION = "region"
 ATTR_CITY = "city"
 ATTR_ASN = "asn"
 ATTR_ORG = "org"
+ATTR_CLIENT = "client_id"
 ATTR_NEW_IP = "new_ip"
 ATTR_LAST_AUTHENTICATE_TIME = "last_authenticated_time"
 ATTR_PREVIOUS_AUTHENTICATE_TIME = "previous_authenticated_time"
@@ -53,12 +53,11 @@ PLATFORM_NAME = "authenticated"
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Optional(CONF_PROVIDER, default="ipinfo"): vol.In(list(PROVIDERS.keys())),
-        vol.Optional(CONF_LOG_LOCATION, default=""): cv.string,
         vol.Optional(CONF_NOTIFY, default=True): cv.boolean,
-        vol.Optional(CONF_NOTIFY_ECLUDE_ASN, default=[]): vol.All(
+        vol.Optional(CONF_NOTIFY_EXCLUDE_ASN, default=[]): vol.All(
             cv.ensure_list, [cv.string]
         ),
-        vol.Optional(CONF_NOTIFY_ECLUDE_HOSTNAMES, default=[]): vol.All(
+        vol.Optional(CONF_NOTIFY_EXCLUDE_HOSTNAMES, default=[]): vol.All(
             cv.ensure_list, [cv.string]
         ),
         vol.Optional(CONF_EXCLUDE, default=[]): vol.All(cv.ensure_list, [cv.string]),
@@ -80,8 +79,8 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 
     """ Create the sensor. """
     notify = config.get(CONF_NOTIFY)
-    notify_exclude_asn = config.get(CONF_NOTIFY_ECLUDE_ASN)
-    notify_exclude_hostnames = config.get(CONF_NOTIFY_ECLUDE_HOSTNAMES)
+    notify_exclude_asn = config.get(CONF_NOTIFY_EXCLUDE_ASN)
+    notify_exclude_hostnames = config.get(CONF_NOTIFY_EXCLUDE_HOSTNAMES)
     exclude = config.get(CONF_EXCLUDE)
     exclude_clients = config.get(CONF_EXCLUDE_CLIENTS)
     hass.data[PLATFORM_NAME] = {}
@@ -164,6 +163,9 @@ class AuthenticatedSensor(Entity):
                 if store.hostname is not None:
                     accessdata.hostname = store.hostname
 
+                if store.client_id is not None:
+                    accessdata.client_id = store.client_id
+
                 if store.country is not None:
                     accessdata.country = store.country
 
@@ -223,8 +225,6 @@ class AuthenticatedSensor(Entity):
                     stored = humanize_time(ipaddress.last_used_at)
 
                     if new == stored:
-                        continue
-                    if new is None or stored is None:
                         continue
                     if new > stored:
                         updated = True
@@ -294,6 +294,7 @@ class AuthenticatedSensor(Entity):
             ATTR_CITY: self.last_ip.city,
             ATTR_ASN: self.last_ip.asn,
             ATTR_ORG: self.last_ip.org,
+            ATTR_CLIENT: self.last_ip.client_id,
             ATTR_USER: self.last_ip.username,
             ATTR_NEW_IP: self.last_ip.new_ip,
             ATTR_LAST_AUTHENTICATE_TIME: self.last_ip.last_used_at,
@@ -320,6 +321,7 @@ class AuthenticatedSensor(Entity):
                 "city": known.city,
                 "asn": known.asn,
                 "org": known.org,
+                "client_id": known.client_id,
             }
         with open(self.out, "w") as out_file:
             yaml.dump(info, out_file, default_flow_style=False, explicit_start=True)
@@ -391,12 +393,18 @@ def load_authentications(authfile, exclude, exclude_clients):
                         "last_used_at"
                     ]
                     tokens_cleaned[token["last_used_ip"]]["user_id"] = token["user_id"]
+                    tokens_cleaned[token["last_used_ip"]]["client_id"] = token.get(
+                        "client_id"
+                    )
             else:
                 tokens_cleaned[token["last_used_ip"]] = {}
                 tokens_cleaned[token["last_used_ip"]]["last_used_at"] = token[
                     "last_used_at"
                 ]
                 tokens_cleaned[token["last_used_ip"]]["user_id"] = token["user_id"]
+                tokens_cleaned[token["last_used_ip"]]["client_id"] = token.get(
+                    "client_id"
+                )
         except Exception:  # Gotta Catch 'Em All
             pass
 
@@ -419,6 +427,7 @@ class AuthenticatedData:
         self.org = attributes.get("org")
         self.user_id = attributes.get("user_id")
         self.hostname = attributes.get("hostname")
+        self.client_id = attributes.get("client_id")
 
 
 class IPData:
@@ -438,6 +447,7 @@ class IPData:
         self.country = access_data.country
         self.asn = access_data.asn
         self.org = access_data.org
+        self.client_id = access_data.client_id
         self.new_ip = new
 
     @property
@@ -474,6 +484,7 @@ class IPData:
         """
 
         for notify_val, notify_str in [
+            (self.client_id, "Client"),
             (self.country, "Country"),
             (self.hostname, "Hostname"),
             (self.region, "Region"),
