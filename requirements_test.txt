@@ -1,0 +1,8 @@
+# Test dependencies.
+# Home Assistant itself (needed to import the integration) comes from
+# requirements.txt, so install both:
+#
+#   pip install -r requirements.txt -r requirements_test.txt
+#   pytest
+#
+pytest>=8.0
