@@ -1,7 +1,7 @@
 """Constants for authenticated."""
 
 DOMAIN = "authenticated"
-INTEGRATION_VERSION = "0.3.0"
+INTEGRATION_VERSION = "0.3.1"
 ISSUE_URL = "https://github.com/rjullien/ha-authenticated/issues"
 
 STARTUP = f"""
